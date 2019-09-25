@@ -351,8 +351,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   movement: {x: 0, y: 0, z: 0}
-  moveSpeed: 10
-  rotationSpeed: 2
+  moveSpeed: 5
+  rotationSpeed: 5
   lookAtObject: {fileID: 1647831879}
 --- !u!1 &1102282842
 GameObject:
@@ -809,10 +809,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   c_state: 0
   target: {fileID: 1647831879}
-  p_pos: {x: 0, y: 0, z: 0}
   cameraHeight: 5
   cameraDistance: 10
   smoothSpeed: 0.125
   camMinMaxAngle: {x: 0, y: 50}
-  t_rotationSpeed: 5
+  t_rotationSpeed: 1
   t_positionSpeed: 1

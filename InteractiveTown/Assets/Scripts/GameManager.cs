@@ -2,8 +2,10 @@
 using System.Collections.Generic;
 using UnityEngine;
 
+
 public class GameManager : MonoBehaviour
 {
+    
     #region Data
     public static GameManager instance; //singleton
     [SerializeField] private CameraController _activeCamera;
@@ -63,5 +65,10 @@ public class GameManager : MonoBehaviour
                     }
             }
         }
+    }
+
+    public void FinishedWithTarget()
+    {
+        target = null;
     }
 }

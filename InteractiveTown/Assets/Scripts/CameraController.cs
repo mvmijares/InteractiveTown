@@ -11,17 +11,15 @@ public class CameraController : MonoBehaviour
 {
     #region Data
     public static CameraController instance; // Will change this from a singleton later.
+    private GameManager gm_instance;
+    private Player p_instance;
+
     [SerializeField] private CameraState c_state; //state machine for camera state
     public GameObject target; //reference to target
-    private Transform p_target; //reference to previous target
-    private Vector3 t_pos; //reference to target position
-    [SerializeField] private Vector3 p_pos; //reference to previous target position
-    
-    public float cameraHeight; //height
+    private GameObject pTarget;
+    private Vector3 camOffset; //offset position from target
     public float cameraDistance; //distance from target
-    public float smoothSpeed; //smooth step speed
-
-    private Vector3 velocity; //reference to velocity per smooth step
+  
 
     //camera movement based on mouse input
     private float xRot;
@@ -32,17 +30,31 @@ public class CameraController : MonoBehaviour
   
     public float t_rotationSpeed; //transition rotation speed
     public float t_positionSpeed; //transition position speed
+    public float smoothSpeed; //smooth step speed
+    private Vector3 velocity; //reference to velocity per smooth step
 
     //booleans to handle completion of transition
-    private bool p_transition;
+    private bool p_transition; 
     private bool r_transition;
+    //position of camera while on player.
+    private Vector3 pPosition;
     #endregion
-
     private void Awake()
     {
         instance = this;
+        InitializeCameraController();
+    }
+    private void Start()
+    {
+        gm_instance = GameManager.instance;
+        p_instance = gm_instance.player;
+    }
+    private void InitializeCameraController()
+    {
         Cursor.lockState = CursorLockMode.Locked;
         c_state = CameraState.Follow;
+        camOffset = new Vector3(0, 0, -cameraDistance);
+        pTarget = target;
     }
 
     private void LateUpdate()
@@ -54,40 +66,80 @@ public class CameraController : MonoBehaviour
         HandleCameraInput();
         HandleCursorState();
 
-        t_pos = target.transform.position;
-
-        if (c_state == CameraState.Follow)
+        switch (c_state)
         {
-            if (target == GameManager.instance.player.lookAtObject)
-            {
-                if (Cursor.lockState == CursorLockMode.Locked)
+            case CameraState.Follow:
                 {
-                    HandleCameraPosition();
-                    HandleCameraRotation();
+                    CameraFollowState(target);
+                    break;
                 }
-            }
+            case CameraState.Transitioning:
+                {
+                    CameraTransitionState(target);
+                    break;
+                }
         }
-        if(c_state == CameraState.Transitioning)
-        {
-            CameraTPosition();
-            CameraTRotation();
-
-            if (p_transition && r_transition)
-            {
-                c_state = CameraState.Follow;
-                p_transition = false;
-                r_transition = false;
-            }
-        }
-        if (target != GameManager.instance.player.lookAtObject)
+        if (target != p_instance.lookAtObject)
         {
             if (Input.GetKey(KeyCode.Escape))
             {
-                ProcessCameraTransition(GameManager.instance.player.lookAtObject);
+                ProcessCameraTransition(p_instance.lookAtObject);
             }
         }
         Debug.DrawLine(transform.position, target.transform.position, Color.red);
     }
+
+    private void CameraTransitionState(GameObject target)
+    {
+        Vector3 currPosition;
+        Quaternion currRotation;
+
+        if (target == p_instance.lookAtObject)
+        {
+            currPosition = Vector3.SmoothDamp(transform.position, pPosition, ref velocity, 1);
+            transform.position = currPosition;
+            currRotation = CalculateCameraRotation(target.transform.position);
+        }
+        else
+        {
+            currPosition = CalculateCameraPosition(Vector3.zero, 1f, -camOffset);
+            currRotation = CalculateCameraRotation(target.transform.position);
+        }
+
+        float magnitude = (currPosition - transform.position).magnitude;
+        float angle = Quaternion.Angle(transform.rotation, currRotation);
+
+        if(angle <= 0.5f)
+        {
+            r_transition = true;
+        }
+        if(magnitude <= 0.5f)
+        {
+            p_transition = true;
+        }
+
+        if (p_transition && r_transition)
+        {
+            c_state = CameraState.Follow;
+            p_transition = false;
+            r_transition = false;
+            gm_instance.FinishedWithTarget();
+        }
+    }
+
+    private void CameraFollowState(GameObject target)
+    {
+        if (target == p_instance.lookAtObject)
+        {
+            if (Cursor.lockState == CursorLockMode.Locked)
+            {
+                Vector3 cameraInput = new Vector3(yRot, xRot, 0);
+                transform.position = CalculateCameraPosition(cameraInput, 0.125f, camOffset);
+                transform.rotation = CalculateCameraRotation(target.transform.position);
+            }
+        }
+    }
+
     /// <summary>
     /// Method to handle cursor state.
     /// </summary>
@@ -116,55 +168,27 @@ public class CameraController : MonoBehaviour
         yRot = Mathf.Clamp(yRot, camMinMaxAngle.x, camMinMaxAngle.y);
     }
     /// <summary>
-    /// Function calculates camera rotation while on player
+    /// Function calculates camera rotation while on p_instance
     /// </summary>
-    private void HandleCameraRotation()
+    private Quaternion CalculateCameraRotation(Vector3 targetPos)
     {
-        Vector3 relativePos = t_pos - transform.position;
-
-        Quaternion newRotation = Quaternion.LookRotation(relativePos, Vector3.up);
-
-        transform.rotation = newRotation;
-    }
-    /// <summary>
-    /// Function calculates camera position while on player
-    /// </summary>
-    private void HandleCameraPosition()
-    {
-        Vector3 offset = new Vector3(0, 0, -cameraDistance); // offset from camera's current position.
-        Quaternion rotation = Quaternion.Euler(yRot, xRot, 0);
-        Vector3 cameraPosition = t_pos + rotation * offset;
-        transform.position = Vector3.SmoothDamp(transform.position, cameraPosition, ref velocity, smoothSpeed);
-    }
-    /// <summary>
-    /// Function to calculate position while transitioning to new target
-    /// </summary>
-    private void CameraTPosition()
-    {
-        Vector3 offset = new Vector3(0, 0, cameraDistance);
-        Vector3 cameraPosition = t_pos + offset;
-
-        transform.position = Vector3.SmoothDamp(transform.position, cameraPosition, ref velocity, t_positionSpeed);
-
-        float magnitude = (transform.position - cameraPosition).magnitude;
-        if(magnitude <= 0.1f)
-        {
-            p_transition = true;
-        }
-    }
-    /// <summary>
-    /// Function to calculate rotation while transition to new target 
-    /// </summary>
-    private void CameraTRotation()
-    {
-        Vector3 relativePos = t_pos - transform.position;
+        Vector3 relativePos = targetPos - transform.position;
         Quaternion newRotation = Quaternion.LookRotation(relativePos, Vector3.up);
 
         transform.rotation = Quaternion.Slerp(transform.rotation, newRotation, Time.deltaTime * t_rotationSpeed);
-        if(Quaternion.Angle(transform.rotation, newRotation) < 1f)
-        {
-            r_transition = true;
-        }
+
+        return newRotation;
+    }
+    /// <summary>
+    /// Function calculates camera position
+    /// </summary>
+    private Vector3 CalculateCameraPosition(Vector3 rotation, float smoothing, Vector3 offset = default(Vector3))
+    {
+        Quaternion camRotation = Quaternion.Euler(rotation);
+        Vector3 cameraPosition = target.transform.position + camRotation * offset;
+        transform.position = Vector3.SmoothDamp(transform.position, cameraPosition, ref velocity, smoothing);
+
+        return cameraPosition;
     }
     /// <summary>
     /// Public method to handle changing targets
@@ -172,15 +196,10 @@ public class CameraController : MonoBehaviour
     /// <param name="target"></param>
     public void ProcessCameraTransition(GameObject target)
     {
-        if (target != GameManager.instance.player.lookAtObject)
-        {
-            p_pos = transform.position;
-            t_pos = target.transform.position;
-        }
-        else
-        {
-            t_pos = p_pos;
-        }
+        if (target != p_instance.lookAtObject)
+            pPosition = transform.position;
+
+        pTarget = this.target;
         this.target = target;
         c_state = CameraState.Transitioning;
     }

@@ -15,6 +15,7 @@ public class Player : MonoBehaviour
     public float moveSpeed;
     public float rotationSpeed;
     public GameObject lookAtObject;
+    public Vector3 pPosition = Vector3.zero; 
     #endregion
     private void Start()
     {
