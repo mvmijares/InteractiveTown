@@ -6,26 +6,40 @@ using UnityEngine;
 public class Player : MonoBehaviour
 {
     #region Data
+    private CameraController camController;
     private int _xInput; // right/left
     private int _yInput; // jump
 
     private int _zInput; // forward/backward
     public Vector3 movement;
     public float moveSpeed;
-
+    public float rotationSpeed;
+    public GameObject lookAtObject;
     #endregion
-
+    private void Start()
+    {
+        camController = CameraController.instance;
+    }
     private void Update()
     {
         HandlePlayerInput();
-        HandlePlayerMovement();
-        
+        if (Cursor.lockState == CursorLockMode.Locked)
+        {
+            HandlePlayerMovement();
+            HandlePlayerRotation();
+        }
+    }
+    private void HandlePlayerRotation()
+    {
+        Vector3 forward = camController.transform.forward;
+        forward.y = 0; // so the player does not rotate on the x axis.
+        Quaternion newRotation = Quaternion.LookRotation(forward, Vector3.up);
+        transform.rotation = Quaternion.Slerp(transform.rotation, newRotation, Time.deltaTime * rotationSpeed);
     }
 
     private void HandlePlayerMovement()
     {
-        movement = new Vector3(_xInput, _yInput, _zInput);
-        transform.position += movement * moveSpeed * Time.deltaTime;
+        transform.position += (transform.forward * _zInput + transform.right * _xInput) * moveSpeed * Time.deltaTime;
     }
 
     private void HandlePlayerInput()
